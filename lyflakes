@@ -1,0 +1,149 @@
+#!/usr/bin/python
+# encoding=UTF-8
+
+# Copyright © 2011 Jakub Wilk <jwilk@jwilk.net>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the “Software”), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import argparse
+import functools
+import re
+import sys
+
+import debian.deb822 as deb822
+import pyflakes.scripts.pyflakes as flakes
+import pyflakes.messages
+
+@functools.total_ordering
+class _Multivalue(object):
+    def __new__(cls, name, value=None):
+        if value is None:
+            self = cls._map[name]
+        else:
+            self = object.__new__(cls)
+            self._name = name
+            self._value = value
+            self._map[name] = self
+        return self
+
+    def __str__(self):
+        return self._name
+
+    def __eq__(self, other):
+        return self is other
+
+    def __le__(self, other):
+        return self._value < other._value
+
+class Severity(_Multivalue):
+    _map = {}
+
+class Certainty(_Multivalue):
+    _map = {}
+
+for value, name in enumerate('pedantic wishlist minor normal important serious'.split()):
+    Severity(name, value)
+
+for value, name in enumerate('wild-guess possible certain'.split()):
+    Certainty(name, value)
+
+class Tag(object):
+
+    def __init__(self, name, severity, certainty):
+        self._name = name
+        self._severity = severity
+        self._certainty = certainty
+        self._code = self._get_code()
+
+    def _get_code(self):
+        s, c = self._severity, self._certainty
+        if s == Severity('serious'):
+            return 'E'
+        elif s == Severity('important'):
+            return 'E' if c >= Certainty('possible') else 'W'
+        elif s == Severity('normal'):
+            return 'W' if c >= Certainty('possible') else 'I'
+        elif s == Severity('minor'):
+            return 'W' if c >= Certainty('certain') else 'I'
+        elif s == Severity('wishlist'):
+            return 'I'
+        elif s == Severity('pedantic'):
+            return 'P'
+        else:
+            raise NotImplementedError
+
+    def format(self, filename, lineno, extra_args):
+        return '%s: %s: %s:%s %s' % (
+            self._code,
+            self._name,
+            filename,
+            lineno,
+            ' '.join(extra_args)
+        )
+
+tags = {}
+
+def Message_str(self):
+    tag_name = type(self).__name__
+    tag_name = (
+        tag_name[0].lower() +
+        re.sub('[A-Z]', lambda m: '-' + m.group(0).lower(), tag_name[1:])
+    )
+    tag = tags[tag_name]
+    arg_types = []
+    tp = str
+    for s in re.split('(%.)', self.message):
+        if len(s) == 2:
+            if s[0] == '%' and s[1] != '%':
+                arg_types += [tp]
+        if s.endswith(' line '):
+            tp = lambda x: 'line ' + str(x)
+        else:
+            tp = str
+    extra_args = [tp(arg) for arg, tp in zip(self.message_args, arg_types)]
+    return tag.format(
+        filename=self.filename,
+        lineno=self.lineno,
+        extra_args=extra_args
+    )
+pyflakes.messages.Message.__str__ = Message_str
+
+def load_tags():
+    with open('tags-repository') as desc:
+        for para in deb822.Deb822.iter_paragraphs(desc):
+            tag_name = para['tag']
+            tag = Tag(
+                tag_name,
+                severity=Severity(para['severity']),
+                certainty=Certainty(para['certainty']),
+            )
+            tags[tag_name] = tag
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('files', metavar='FILE-OR-DIR', nargs='+', help='file or directory to check')
+    options = parser.parse_args()
+    load_tags()
+    rc = flakes.main(options.files)
+    sys.exit(rc > 0)
+
+if __name__ == '__main__':
+    main()
+
+# vim:ts=4 sw=4 et
