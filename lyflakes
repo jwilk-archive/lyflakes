@@ -31,6 +31,8 @@ import debian.deb822 as deb822
 import pyflakes.scripts.pyflakes as flakes
 import pyflakes.messages
 
+import colorterm
+
 @functools.total_ordering
 class _Multivalue(object):
     def __new__(cls, name, value=None):
@@ -71,6 +73,7 @@ class Tag(object):
         self._severity = severity
         self._certainty = certainty
         self._code = self._get_code()
+        self._color = self._get_color()
 
     def _get_code(self):
         s, c = self._severity, self._certainty
@@ -89,10 +92,25 @@ class Tag(object):
         else:
             raise NotImplementedError
 
+    def _get_color(self):
+        return dict(
+            E=colorterm.RED,
+            W=colorterm.YELLOW,
+            I=colorterm.CYAN,
+            P=colorterm.GREEN,
+        )[self._code]
+
     def format(self, filename, lineno, extra_args):
-        return '%s: %s: %s:%s %s' % (
+        if options.color:
+            color_on = colorterm.fgcolor(self._color)
+            color_off = colorterm.reset()
+        else:
+            color_on = color_off = ''
+        return '%s: %s%s%s: %s:%s %s' % (
             self._code,
+            color_on,
             self._name,
+            color_off,
             filename,
             lineno,
             ' '.join(extra_args)
@@ -138,9 +156,15 @@ def load_tags():
             tags[tag_name] = tag
 
 def main():
+    global options
     parser = argparse.ArgumentParser()
+    parser.add_argument('--color', choices=('yes', 'no', 'auto'), default='auto')
     parser.add_argument('files', metavar='FILE-OR-DIR', nargs='+', help='file or directory to check')
     options = parser.parse_args()
+    if options.color == 'auto':
+        options.color = sys.stdout.isatty()
+    else:
+        options.color = options.color == 'yes'
     load_tags()
     rc = flakes.main(options.files)
     sys.exit(rc > 0)
