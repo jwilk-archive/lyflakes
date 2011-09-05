@@ -23,6 +23,7 @@
 
 import argparse
 import functools
+import os
 import re
 import sys
 
@@ -125,7 +126,8 @@ def Message_str(self):
 pyflakes.messages.Message.__str__ = Message_str
 
 def load_tags():
-    with open('tags-repository') as desc:
+    here = os.path.dirname(os.path.realpath(__file__))
+    with open(os.path.join(here, 'tags-repository')) as desc:
         for para in deb822.Deb822.iter_paragraphs(desc):
             tag_name = para['tag']
             tag = Tag(
