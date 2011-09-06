@@ -1,23 +1,18 @@
 Tag: unused-import
 Severity: minor
 Certainty: possible
-Description: A module is imported, but not used.
 
 Tag: redefined-while-unused
 Severity: normal
 Certainty: possible
-Description: A variable was never used before it was redefined.
 
 Tag: import-shadowed-by-loop-var
 Severity: important
 Certainty: possible
-Description: A loop variable shadows an imported module.
 
 Tag: import-star-used
 Severity: wishlist
 Certainty: certain
-Description: <code>from ... import *</code> is used. This is not bad per-se,
- but it prevents lyflakes from perfoming additional checks.
 
 Tag: undefined-name
 Severity: serious
@@ -26,13 +21,10 @@ Certainty: possible
 Tag: undefined-export
 Severity: important
 Certainty: possible
-Description: <code>__all__<code> referes to a name that is not defined in this
- module.
 
 Tag: undefined-local
 Severity: serious
 Certainty: possible
-Description: A local variable is referenced before assignment.
 
 Tag: duplicate-argument
 Severity: serious
