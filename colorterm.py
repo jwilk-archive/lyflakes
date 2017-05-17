@@ -67,4 +67,4 @@ __setaf = [curses.tparm(__setaf, j).decode('ASCII') for j in range(8)]
 __setab = curses.tigetstr('setab')
 __setab = [curses.tparm(__setab, j).decode('ASCII') for j in range(8)]
 
-# vim:ts=4 sw=4 et
+# vim:ts=4 sts=4 sw=4 et
